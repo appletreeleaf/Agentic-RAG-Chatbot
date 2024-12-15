@@ -1,4 +1,4 @@
-from loguru import loggerdd
+from loguru import logger
 import streamlit as st
 from utills import print_message, get_session_history, get_conversation_chain, get_conversation_chain_with_callbacks, StreamHandler
 
