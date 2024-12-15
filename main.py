@@ -181,11 +181,3 @@ if user_input := st.chat_input("메세지를 입력해 주세요"):
             logger.error(f"Error during processing: {e}")
     else:
         st.error("Retriever is not initialized.")
-
-
-
-
-
-# retriever 기능 정상화
-# ensemble retriever로 검색성능 업그레이드
-# 응답 생성부분 코드 가독성
