@@ -340,7 +340,7 @@ if st.session_state["user_input"]:
                     config={"configurable": {"session_id": "MyTestSessionID"}}
                 )
                 answer = response["output"]
-
+    
                 # Display reference documents
                 get_relavant_documents(user_input=user_input)
 
