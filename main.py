@@ -240,7 +240,7 @@ initialize_session_state()
 with st.sidebar:
     session_id = st.text_input("Session ID", value="Chating Room")
     uploaded_files = st.file_uploader("Upload files", type=['pdf', 'docx', 'txt', 'hwp'], accept_multiple_files=True)
-    url = st.text_input("Page Url")
+    url = st.text_input("Url")
 
     if uploaded_files:
         doc_list = []
@@ -304,12 +304,12 @@ with st.sidebar:
 print_message()
 
 
-# 사용자 입력 (chat_input)
+# initialize chat_input
 chat_input = st.chat_input("Please enter your question:")
 if chat_input:
     st.session_state["user_input"] = chat_input
 
-# 세션 상태에서 user_input 가져오기
+# Chat logic
 if st.session_state["user_input"]:
     user_input = st.session_state["user_input"]
     st.chat_message("user").write(user_input)
@@ -347,7 +347,6 @@ if st.session_state["user_input"]:
                 # Display related questions
                 get_related_questions(answer)
 
-                # 챗봇의 답변 출력
                 st.session_state["message"].append(ChatMessage(role="assistant", content=answer))
 
             except Exception as e:
