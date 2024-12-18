@@ -180,7 +180,7 @@ def initialize_session_state():
         
     if "user_input" not in st.session_state:
         st.session_state["user_input"] = ""
-
+###
 def get_related_questions(answer):
     related_questions = generate_questions(answer)
     with st.expander("You might also be interested in:"):
