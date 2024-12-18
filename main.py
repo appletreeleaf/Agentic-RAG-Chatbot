@@ -75,20 +75,20 @@ def get_loaders(file_name):
     st.error("Unsupported file type.")
     return None
 
-def get_web_loader(url):
-    loader = WebBaseLoader(
-        web_paths=[url],
-        bs_kwargs=dict(
-            parse_only=bs4.SoupStrainer(
-                "div",
-                attrs={"class": ["newsct_article _article_body", "media_end_head_title"]},
-            )
-        ),
-        header_template={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36",
-        },
-    )
-    return loader
+# def get_web_loader(url):
+#     loader = WebBaseLoader(
+#         web_paths=[url],
+#         bs_kwargs=dict(
+#             parse_only=bs4.SoupStrainer(
+#                 "div",
+#                 attrs={"class": ["newsct_article _article_body", "media_end_head_title"]},
+#             )
+#         ),
+#         header_template={
+#             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36",
+#         },
+#     )
+#     return loader
 
 def get_documents(loader, chunk_size, chunk_overlap):
     """
@@ -136,7 +136,7 @@ def get_retrievers(doc_list):
 def get_agent_executor():
     """
     Returns the agent executor object.
-
+d
     Returns:
         agent_executor: The agent executor object.
     """
@@ -180,7 +180,7 @@ def initialize_session_state():
         
     if "user_input" not in st.session_state:
         st.session_state["user_input"] = ""
-
+###
 def get_related_questions(answer):
     related_questions = generate_questions(answer)
     with st.expander("You might also be interested in:"):
@@ -188,11 +188,18 @@ def get_related_questions(answer):
             st.markdown(f"{question}")
 
 def get_relavant_documents(user_input):
-    relevant_docs = st.session_state["retrievers"]["compression_retriever"].get_relevant_documents(user_input)
+    search = TavilySearchResults(k=2)
+    search_response = search.invoke(user_input)
+
+    relevant_docs = st.session_state["retrievers"]["dense_retriever"].get_relevant_documents(user_input)
     if relevant_docs:
-        with st.expander("Reference Documents"):
-            for doc in relevant_docs:
-                st.markdown(doc.metadata['source'], help=doc.page_content)
+        with st.expander("References"):
+            st.subheader("Document", divider=True)
+            for index, doc in enumerate(relevant_docs):
+                st.markdown(f"{doc.metadata['source']} - {index+1}", help=doc.page_content)
+            st.subheader("Search", divider=True)
+            for index, doc in enumerate(search_response):
+                st.markdown(f"{doc['url']} - {index+1}", help=doc['content'])
 
 def generate_questions(answer):
     """
@@ -216,6 +223,7 @@ def generate_questions(answer):
         Questions:
         """
     )
+    ##
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=1)
 
     chain = prompt | llm
@@ -224,7 +232,6 @@ def generate_questions(answer):
     following_questions = response.content.strip().split("\n")
     return following_questions
 
-            
         
 # Streamlit page configuration
 st.set_page_config(page_title="MyAssistant", page_icon="🤗")
@@ -260,14 +267,14 @@ with st.sidebar:
                 st.error(f"Error loading {file_name}: {e}")
                 logger.error(f"Error loading {file_name}: {e}")
 
-    if url:
-        doc_list = []
-        docs = get_web_loader.load(url)
-        for doc in docs:
-            if loader:
-                splitted_documents = get_documents(loader, chunk_size=1000, chunk_overlap=50)
-                doc_list.extend(splitted_documents)
-                st.write("File has been uploaded!")
+    # if url:
+    #     doc_list = []
+    #     docs = get_web_loader.load(url)
+    #     for doc in docs:
+    #         if loader:
+    #             splitted_documents = get_documents(loader, chunk_size=1000, chunk_overlap=50)
+    #             doc_list.extend(splitted_documents)
+    #             st.write("File has been uploaded!")
 
         # Initialize vector store and retrievers
         if "vectorstore" not in st.session_state and doc_list:
@@ -340,7 +347,7 @@ if st.session_state["user_input"]:
                     config={"configurable": {"session_id": "MyTestSessionID"}}
                 )
                 answer = response["output"]
-
+    
                 # Display reference documents
                 get_relavant_documents(user_input=user_input)
 
