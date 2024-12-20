@@ -136,7 +136,7 @@ def get_retrievers(doc_list):
 def get_agent_executor():
     """
     Returns the agent executor object.
-d
+
     Returns:
         agent_executor: The agent executor object.
     """
@@ -180,26 +180,26 @@ def initialize_session_state():
         
     if "user_input" not in st.session_state:
         st.session_state["user_input"] = ""
-###
+
 def get_related_questions(answer):
     related_questions = generate_questions(answer)
     with st.expander("You might also be interested in:"):
         for question in related_questions:
             st.markdown(f"{question}")
 
-def get_relavant_documents(user_input):
-    search = TavilySearchResults(k=2)
+def get_References(user_input):
+    search = TavilySearchResults()
     search_response = search.invoke(user_input)
 
     relevant_docs = st.session_state["retrievers"]["dense_retriever"].get_relevant_documents(user_input)
     if relevant_docs:
         with st.expander("References"):
-            st.subheader("Document", divider=True)
+            st.subheader("Document", divider='gray')
             for index, doc in enumerate(relevant_docs):
-                st.markdown(f"{doc.metadata['source']} - {index+1}", help=doc.page_content)
-            st.subheader("Search", divider=True)
-            for index, doc in enumerate(search_response):
-                st.markdown(f"{doc['url']} - {index+1}", help=doc['content'])
+                st.markdown(f"{doc.metadata['source']}", help=doc.page_content)
+            st.subheader("Search", divider='gray')
+            for index, doc in enumerate(search_response[:2]):
+                st.markdown(f"{doc['url']}", help=doc['content'])
 
 def generate_questions(answer):
     """
@@ -243,7 +243,7 @@ st.chat_message("assistant").write("*안녕하세요! 저는 당신의 문서 �
 # Initialize session state variables
 initialize_session_state()
 
-# Sidebar for user input
+# Sidebar
 with st.sidebar:
     session_id = st.text_input("Session ID", value="Chating Room")
     uploaded_files = st.file_uploader("Upload files", type=['pdf', 'docx', 'txt', 'hwp'], accept_multiple_files=True)
@@ -266,15 +266,6 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Error loading {file_name}: {e}")
                 logger.error(f"Error loading {file_name}: {e}")
-
-    # if url:
-    #     doc_list = []
-    #     docs = get_web_loader.load(url)
-    #     for doc in docs:
-    #         if loader:
-    #             splitted_documents = get_documents(loader, chunk_size=1000, chunk_overlap=50)
-    #             doc_list.extend(splitted_documents)
-    #             st.write("File has been uploaded!")
 
         # Initialize vector store and retrievers
         if "vectorstore" not in st.session_state and doc_list:
@@ -303,7 +294,7 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Error initializing retriever: {e}")
                 logger.error(f"Error initializing retriever: {e}")
-
+    
     if st.button("Reset"):
         st.rerun()
 
@@ -323,11 +314,11 @@ if st.session_state["user_input"]:
     st.session_state["message"].append(ChatMessage(role="user", content=user_input))
 
     with st.chat_message("assistant"):
-        if "retrievers" in st.session_state and "compressor" in st.session_state:
-            try:
-                # Streaming output location
-                stream_handler = StreamHandler(st.empty())
+        # Streaming output location
 
+        if st.session_state["retrievers"] and st.session_state["compressor"]:
+            stream_handler = StreamHandler(st.empty())
+            try:
                 # Define agent
                 agent_executor = get_agent_executor()
                 if "agent_executor" not in st.session_state:
@@ -344,12 +335,12 @@ if st.session_state["user_input"]:
                 # Generate response
                 response = agent_with_chat_history.invoke(
                     {"input": user_input},
-                    config={"configurable": {"session_id": "MyTestSessionID"}}
+                    config={"configurable": {"session_id": "SessionID"}}
                 )
                 answer = response["output"]
     
                 # Display reference documents
-                get_relavant_documents(user_input=user_input)
+                get_References(user_input=user_input)
 
                 # Display related questions
                 get_related_questions(answer)
@@ -357,7 +348,41 @@ if st.session_state["user_input"]:
                 st.session_state["message"].append(ChatMessage(role="assistant", content=answer))
 
             except Exception as e:
-                st.error(f"Error during processing: {e}")
-                logger.error(f"Error during processing: {e}")
+                st.error(f"Error during processing with Agent: {e}")
+                logger.error(f"Error during processing with Agent: {e}")
         else:
-            st.error("Retriever is not initialized.")
+            try:
+                # chatprompt를 만들어야함.. 
+                chat_prompt = ChatPromptTemplate.from_messages(
+                    [
+                        ("system", "당신은 Question-Answering 챗봇입니다. 사용자의 질문에 대한 답변을 제공해주세요."),
+                        MessagesPlaceholder(variable_name="chat_history"),
+                        ("human", "#Question: \n{question}")
+                    ]
+                )
+                llm = ChatOpenAI(model="gpt-4o-mini", streaming=True, callbacks=[StreamHandler(st.empty())])
+
+                chain = chat_prompt | llm
+
+                # Create agent with chat history
+                chain_with_history = RunnableWithMessageHistory(
+                    chain,
+                    get_session_history,  # 세션 기록을 가져오는 함수
+                    input_messages_key="question",  # 사용자의 질문이 템플릿 변수에 들어갈 key
+                    history_messages_key="chat_history",  # 기록 메시지의 키
+                )
+
+                response = chain_with_history.invoke(
+                    {"question": user_input},
+                    config={"configurable": {"session_id": "SessionID"}}
+                )
+                answer = response.content
+
+                # Display related questions
+                get_related_questions(answer)
+                
+                st.session_state["message"].append(ChatMessage(role="assistant", content=answer))
+
+            except Exception as e:
+                st.error(f"Error during processing with LLM: {e}")
+                logger.error(f"Error during processing with LLM: {e}")
