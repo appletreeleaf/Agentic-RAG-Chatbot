@@ -50,8 +50,11 @@ from langchain_teddynote.messages import stream_response
 from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 
 
+def get_webbase_loader(urls):
+    loader = WebBaseLoader(web_path=urls, encoding="utf-8")
+    return loader
 
-def get_loaders(file_name):
+def get_document_loaders(file_name):
     """
     Returns the appropriate loader based on the document format.
 
@@ -75,20 +78,6 @@ def get_loaders(file_name):
     st.error("Unsupported file type.")
     return None
 
-# def get_web_loader(url):
-#     loader = WebBaseLoader(
-#         web_paths=[url],
-#         bs_kwargs=dict(
-#             parse_only=bs4.SoupStrainer(
-#                 "div",
-#                 attrs={"class": ["newsct_article _article_body", "media_end_head_title"]},
-#             )
-#         ),
-#         header_template={
-#             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36",
-#         },
-#     )
-#     return loader
 
 def get_documents(loader, chunk_size, chunk_overlap):
     """
@@ -249,23 +238,34 @@ with st.sidebar:
     uploaded_files = st.file_uploader("Upload files", type=['pdf', 'docx', 'txt', 'hwp'], accept_multiple_files=True)
     url = st.text_input("Url")
 
-    if uploaded_files:
-        doc_list = []
-        for doc in uploaded_files:
-            file_name = doc.name
-            with open(file_name, "wb") as file:
-                file.write(doc.getvalue())
-                logger.info(f"Uploaded {file_name}")
+    doc_list = []
+    if uploaded_files or url:
+        # Load files
+        if uploaded_files:
+            for doc in uploaded_files:
+                file_name = doc.name
+                with open(file_name, "wb") as file:
+                    file.write(doc.getvalue())
+                    logger.info(f"Uploaded {file_name}")
+                try:
+                    loader = get_document_loaders(file_name)
+                    if loader:
+                        splitted_documents = get_documents(loader, chunk_size=1000, chunk_overlap=50)
+                        doc_list.extend(splitted_documents)
+                except Exception as e:
+                    st.error(f"Error loading {file_name}: {e}")
+                    logger.error(f"Error loading {file_name}: {e}")
+        # Load web pages
+        if url:
             try:
-                loader = get_loaders(file_name)
+                loader = get_webbase_loader(urls=url)
                 if loader:
                     splitted_documents = get_documents(loader, chunk_size=1000, chunk_overlap=50)
                     doc_list.extend(splitted_documents)
-                    st.write("File has been uploaded!")
-
-            except Exception as e:
-                st.error(f"Error loading {file_name}: {e}")
-                logger.error(f"Error loading {file_name}: {e}")
+            except:
+                st.error(f"Error loading {url}: {e}")
+                logger.error(f"Error loading {url}: {e}")      
+        st.write("File has been uploaded!")
 
         # Initialize vector store and retrievers
         if "vectorstore" not in st.session_state and doc_list:
@@ -314,9 +314,9 @@ if st.session_state["user_input"]:
     st.session_state["message"].append(ChatMessage(role="user", content=user_input))
 
     with st.chat_message("assistant"):
-        # Streaming output location
 
         if st.session_state["retrievers"] and st.session_state["compressor"]:
+            # Streaming output location
             stream_handler = StreamHandler(st.empty())
             try:
                 # Define agent
